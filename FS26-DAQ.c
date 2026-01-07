@@ -24,7 +24,7 @@ void core1_main() {
         // Log core 1 activity every 5 seconds
         uint32_t current_time = to_ms_since_boot(get_absolute_time());
         if (current_time - last_log_time > 5000) {
-            printf("Core 1: Processing cycle %lu | GPS Fix: %s | Sats: %d\n", 
+            printf("Core 1: Processing cycle %u | GPS Fix: %s | Sats: %d\n", 
                    core1_counter, 
                    gps_data->fix_valid ? "YES" : "NO",
                    gps_data->satellites);
