@@ -68,6 +68,6 @@ int main() {
         gps_process();
         
         // Optional: Add small delay to prevent overwhelming the system
-        // sleep_us(100); // Uncomment if needed
+        sleep_us(100); // Uncomment if needed
     }
 }
