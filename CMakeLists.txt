@@ -35,7 +35,10 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(FS26-DAQ FS26-DAQ.c )
+add_executable(FS26-DAQ 
+    FS26-DAQ.c 
+    gps.c      # <--- Check if this is named gps.c in your folder!
+)
 
 pico_set_program_name(FS26-DAQ "FS26-DAQ")
 pico_set_program_version(FS26-DAQ "0.1")
@@ -44,9 +47,11 @@ pico_set_program_version(FS26-DAQ "0.1")
 pico_enable_stdio_uart(FS26-DAQ 0)
 pico_enable_stdio_usb(FS26-DAQ 1)
 
-# Add the standard library to the build
+# 2. Add pico_multicore here to fix the 'multicore_launch_core1' error
 target_link_libraries(FS26-DAQ
-        pico_stdlib)
+        pico_stdlib
+        pico_multicore
+)
 
 # Add the standard include files to the build
 target_include_directories(FS26-DAQ PRIVATE
