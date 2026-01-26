@@ -1,45 +1,57 @@
 #include <stdio.h>
+#include <string.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "gps.h"
+#include "lr1121_ping_pong.h"
 
-// Shared data between cores (protected by critical sections if needed)
+// Shared data between cores (protected by spin lock in GPS module)
 static volatile bool core1_running = false;
-static volatile uint32_t core1_counter = 0;
 
-// Core 1 entry point - placeholder processing
+// GPS telemetry packet structure (20 bytes)
+typedef struct __attribute__((packed)) {
+    float    latitude;      // 4 bytes
+    float    longitude;     // 4 bytes
+    float    speed_kph;     // 4 bytes
+    float    altitude;      // 4 bytes
+    uint16_t tx_count;      // 2 bytes
+    uint8_t  satellites;    // 1 byte
+    uint8_t  fix_valid;     // 1 byte
+} gps_telemetry_packet_t;
+
+// Core 1 entry point - LoRa GPS telemetry broadcast
 void core1_main() {
-    printf("Core 1: Starting placeholder processing...\n");
+    printf("Core 1: Initializing LoRa TX...\n");
     core1_running = true;
     
-    uint32_t last_log_time = 0;
+    // Initialize LoRa once
+    lora_tx_init();
+    
+    printf("Core 1: Starting GPS telemetry broadcast...\n");
     
     while (true) {
-        // Placeholder processing - simulate data analysis/logging
-        core1_counter++;
+        // Get thread-safe copy of GPS data
+        gps_data_t gps;
+        gps_get_data_safe(&gps);
         
-        // Example: Access GPS data from the other core
-        const gps_data_t* gps_data = gps_get_data();
+        // Build telemetry packet
+        gps_telemetry_packet_t packet;
+        packet.latitude   = (float)gps.raw_latitude;
+        packet.longitude  = (float)gps.raw_longitude;
+        packet.speed_kph  = (float)gps.speed_kph;
+        packet.altitude   = (float)gps.altitude;
+        packet.tx_count   = (uint16_t)lora_get_tx_count();
+        packet.satellites = (uint8_t)gps.satellites;
+        packet.fix_valid  = gps.fix_valid ? 1 : 0;
         
-        // Log core 1 activity every 5 seconds
-        uint32_t current_time = to_ms_since_boot(get_absolute_time());
-        if (current_time - last_log_time > 5000) {
-            printf("Core 1: Processing cycle %u | GPS Fix: %s | Sats: %d\n", 
-                   core1_counter, 
-                   gps_data->fix_valid ? "YES" : "NO",
-                   gps_data->satellites);
-            last_log_time = current_time;
+        // Send it (blocking)
+        if (lora_send((uint8_t*)&packet, sizeof(packet))) {
+            printf("[LORA] TX: %.6f, %.6f | %.1f kph | Sats:%d | Fix:%s\n",
+                   packet.latitude, packet.longitude, packet.speed_kph,
+                   packet.satellites, packet.fix_valid ? "Y" : "N");
         }
         
-        // Simulate some processing work
-        sleep_ms(100);
-        
-        // TODO: Add your data processing, logging, calculations, etc. here
-        // Examples:
-        // - Data logging to SD card
-        // - Sensor data fusion
-        // - Communication protocols
-        // - Real-time calculations
+        sleep_ms(1000);  // TX rate: 1Hz
     }
 }
 
@@ -47,13 +59,13 @@ int main() {
     stdio_init_all();
     sleep_ms(2000); 
     
-    printf("Core 0: Initializing dual-core GPS DAQ system...\n");
+    printf("Core 0: Initializing dual-core GPS + LoRa DAQ system...\n");
     
     // Initialize GPS module on core 0
     gps_init();
     
-    // Launch core 1 for parallel processing
-    printf("Core 0: Launching Core 1 for data processing...\n");
+    // Launch core 1 for LR1121 ping-pong
+    printf("Core 0: Launching Core 1 for LR1121 ping-pong...\n");
     multicore_launch_core1(core1_main);
     
     // Wait for core 1 to be ready
@@ -68,6 +80,6 @@ int main() {
         gps_process();
         
         // Optional: Add small delay to prevent overwhelming the system
-        sleep_us(100); // Uncomment if needed
+        sleep_us(100);
     }
 }

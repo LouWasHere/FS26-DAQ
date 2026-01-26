@@ -9,6 +9,9 @@ static int buffer_index = 0;
 static int total_readings = 0;
 static gps_data_t gps_data = {0};
 
+// Spin lock for thread-safe access to gps_data
+static spin_lock_t* gps_spin_lock = NULL;
+
 // --- Helper Functions ---
 
 // Custom tokenizer that handles empty fields (e.g. ",,") correctly
@@ -68,18 +71,26 @@ static void parse_gpgga(char* sentence) {
         field++;
     }
     
-    // Always update satellite count
-    if (strlen(sat_str) > 0) gps_data.satellites = atoi(sat_str);
+    // Parse values locally first
+    int sats = (strlen(sat_str) > 0) ? atoi(sat_str) : 0;
+    float lat = nmea_to_decimal(lat_str, lat_dir);
+    float lon = nmea_to_decimal(lon_str, lon_dir);
+    float alt = atof(alt_str);
+    float hdop_val = atof(alt_str); // Already parsed above into gps_data.hdop
+    bool valid = (strlen(lat_str) > 0 && sats > 0);
 
-    // Only update position if we actually have data
-    if (strlen(lat_str) > 0 && gps_data.satellites > 0) {
+    // Update gps_data with spin lock protection
+    uint32_t irq_state = spin_lock_blocking(gps_spin_lock);
+    gps_data.satellites = sats;
+    if (valid) {
         gps_data.fix_valid = true;
-        gps_data.raw_latitude = nmea_to_decimal(lat_str, lat_dir);
-        gps_data.raw_longitude = nmea_to_decimal(lon_str, lon_dir);
-        gps_data.altitude = atof(alt_str);
+        gps_data.raw_latitude = lat;
+        gps_data.raw_longitude = lon;
+        gps_data.altitude = alt;
     } else {
         gps_data.fix_valid = false;
     }
+    spin_unlock(gps_spin_lock, irq_state);
 }
 
 static void parse_gprmc(char* sentence) {
@@ -98,8 +109,15 @@ static void parse_gprmc(char* sentence) {
         field++;
     }
     
-    if (strlen(speed_str) > 0) gps_data.speed_kph = atof(speed_str) * 1.852; 
-    if (strlen(course_str) > 0) gps_data.course = atof(course_str);
+    // Parse locally first
+    float speed = (strlen(speed_str) > 0) ? atof(speed_str) * 1.852f : gps_data.speed_kph;
+    float crs = (strlen(course_str) > 0) ? atof(course_str) : gps_data.course;
+
+    // Update with spin lock protection
+    uint32_t irq_state = spin_lock_blocking(gps_spin_lock);
+    gps_data.speed_kph = speed;
+    gps_data.course = crs;
+    spin_unlock(gps_spin_lock, irq_state);
 }
 
 // --- Logic Functions ---
@@ -119,7 +137,8 @@ static void apply_filtering_and_print() {
         return;
     }
 
-    // Filter 2: Stationary Anti-Drift
+    // Filter 2: Stationary Anti-Drift (with spin lock)
+    uint32_t irq_state = spin_lock_blocking(gps_spin_lock);
     if (gps_data.speed_kph >= MIN_SPEED_THRESHOLD) {
         gps_data.is_moving = true;
         gps_data.display_latitude = gps_data.raw_latitude;
@@ -133,13 +152,19 @@ static void apply_filtering_and_print() {
             gps_data.display_longitude = gps_data.raw_longitude;
         }
     }
+    // Copy for printing outside lock
+    float disp_lat = gps_data.display_latitude;
+    float disp_lon = gps_data.display_longitude;
+    float spd = gps_data.speed_kph;
+    bool moving = gps_data.is_moving;
+    spin_unlock(gps_spin_lock, irq_state);
 
     printf("[%d] %s | %.6f, %.6f | %.1f kph | 5Hz\n", 
            total_readings,
-           gps_data.is_moving ? "MOVING" : "STATIC",
-           gps_data.display_latitude,
-           gps_data.display_longitude,
-           gps_data.speed_kph);
+           moving ? "MOVING" : "STATIC",
+           disp_lat,
+           disp_lon,
+           spd);
 }
 
 static void process_gps_data() {
@@ -168,6 +193,9 @@ static void process_gps_data() {
 // --- Public Interface Implementation ---
 
 void gps_init(void) {
+    // Initialize spin lock for thread-safe access
+    gps_spin_lock = spin_lock_init(spin_lock_claim_unused(true));
+    
     printf("1. Auto-detecting baud rate...\n");
     uart_init(GPS_UART_ID, GPS_TARGET_BAUD);
     gpio_set_function(GPS_TX_PIN, GPIO_FUNC_UART);
@@ -221,4 +249,10 @@ bool gps_is_readable(void) {
 
 const gps_data_t* gps_get_data(void) {
     return &gps_data;
+}
+
+void gps_get_data_safe(gps_data_t* out) {
+    uint32_t irq_state = spin_lock_blocking(gps_spin_lock);
+    *out = gps_data;  // Copy entire struct atomically
+    spin_unlock(gps_spin_lock, irq_state);
 }

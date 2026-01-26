@@ -33,11 +33,30 @@ project(FS26-DAQ C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+# Add the compile definition to enable the ping-pong code
+# add_compile_definitions(LR1121_PING_PONG)
+
+# Add subdirectories for the libraries
+add_subdirectory(./src/gpio)
+add_subdirectory(./src/spi)
+add_subdirectory(./src/lr1121)
+
+# Add include directories
+include_directories(./src/gpio)
+include_directories(./src/spi)
+include_directories(./src/lr1121)
+
+# Include the ping-pong and config files (adjust path as needed)
+# If lr1121_ping_pong.c/h and lr1121_config.c/h are in your main folder:
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(FS26-DAQ 
     FS26-DAQ.c 
     gps.c      # <--- Check if this is named gps.c in your folder!
+    lr1121_config.c
+    lr1121_ping_pong.c
 )
 
 pico_set_program_name(FS26-DAQ "FS26-DAQ")
@@ -51,6 +70,9 @@ pico_enable_stdio_usb(FS26-DAQ 1)
 target_link_libraries(FS26-DAQ
         pico_stdlib
         pico_multicore
+        gpio
+        spi
+        lr1121
 )
 
 # Add the standard include files to the build

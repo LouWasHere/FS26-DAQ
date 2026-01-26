@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "pico/stdlib.h"
+#include "pico/sync.h"
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
 
@@ -67,5 +68,12 @@ bool gps_is_readable(void);
  * @return pointer to current GPS data structure
  */
 const gps_data_t* gps_get_data(void);
+
+/**
+ * Get a thread-safe copy of GPS data
+ * Uses spin lock to ensure atomic read across cores
+ * @param out Pointer to gps_data_t struct to fill with current data
+ */
+void gps_get_data_safe(gps_data_t* out);
 
 #endif // GPS_H
