@@ -8,8 +8,9 @@
 // Shared data between cores (protected by spin lock in GPS module)
 static volatile bool core1_running = false;
 
-// GPS telemetry packet structure (20 bytes)
+// GPS telemetry packet structure (24 bytes now)
 typedef struct __attribute__((packed)) {
+    uint32_t magic;         // 4 bytes - e.g., 0xFS26 or 0x46533236
     float    latitude;      // 4 bytes
     float    longitude;     // 4 bytes
     float    speed_kph;     // 4 bytes
@@ -36,6 +37,7 @@ void core1_main() {
         
         // Build telemetry packet
         gps_telemetry_packet_t packet;
+        packet.magic      = 0x46533236;  // "FS26" in ASCII hex
         packet.latitude   = (float)gps.raw_latitude;
         packet.longitude  = (float)gps.raw_longitude;
         packet.speed_kph  = (float)gps.speed_kph;
