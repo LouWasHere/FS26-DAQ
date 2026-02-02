@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "lr1121_ping_pong.h"
+#include "lr1121_tx.h"
 #include "safe_print.h"
 #include "gpio.h"
 

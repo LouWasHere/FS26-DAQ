@@ -4,7 +4,7 @@
 #include "pico/multicore.h"
 #include "pico/mutex.h"  // Add this
 #include "gps.h"
-#include "lr1121_ping_pong.h"
+#include "lr1121_tx.h"
 
 // Global mutex for printf
 mutex_t printf_mutex;
