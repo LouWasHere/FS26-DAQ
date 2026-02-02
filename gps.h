@@ -12,18 +12,16 @@
 #define GPS_TX_PIN 0
 #define GPS_RX_PIN 1
 
-// Baud Rate: 57600 is optimal for 5Hz
+// Baud Rate: 57600 required for 5Hz
 #define GPS_TARGET_BAUD 57600
 
 // Commands
-#define GPS_CMD_RATE        "$PMTK220,200*2C\r\n"   
-#define GPS_CMD_BAUD        "$PMTK251,57600*2C\r\n"
-// Enable ONLY GGA and RMC to save bandwidth
+#define GPS_CMD_RATE        "$PMTK220,200*2C\r\n"    // 200ms = 5Hz
 #define GPS_CMD_SET_OUTPUT  "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n"
 
 // Filtering Settings
-#define MAX_HDOP_THRESHOLD  3.0f  // Ignore data if accuracy is worse than this
-#define MIN_SPEED_THRESHOLD 3.0f  // km/h. Below this, we lock position (Anti-Drift)
+#define MAX_HDOP_THRESHOLD  3.0f   // Ignore data if accuracy is worse than this
+#define MIN_SPEED_THRESHOLD 8.0f   // km/h - Must exceed GPS noise floor (~7 kph)
 
 // Buffer
 #define NMEA_BUFFER_SIZE 256

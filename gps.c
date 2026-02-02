@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "gps.h"
+#include "safe_print.h"
 
 // --- Private Variables ---
 static char nmea_buffer[NMEA_BUFFER_SIZE];
@@ -99,19 +100,25 @@ static void parse_gprmc(char* sentence) {
     
     int field = 1;
     char* token;
+    char status = 'V';  // V = void (invalid), A = active (valid)
     char speed_str[16]={0}, course_str[16]={0};
     
     while ((token = nmea_token(&cursor)) != NULL && field < 12) {
         switch (field) {
+            case 2: status = token[0]; break;  // A=valid, V=invalid
             case 7: strncpy(speed_str, token, 15); break;
             case 8: strncpy(course_str, token, 15); break;
         }
         field++;
     }
     
-    // Parse locally first
-    float speed = (strlen(speed_str) > 0) ? atof(speed_str) * 1.852f : gps_data.speed_kph;
-    float crs = (strlen(course_str) > 0) ? atof(course_str) : gps_data.course;
+    // Only use speed/course if status is Active (valid fix)
+    float speed = 0.0f;
+    float crs = 0.0f;
+    if (status == 'A') {
+        speed = (strlen(speed_str) > 0) ? atof(speed_str) * 1.852f : 0.0f;
+        crs = (strlen(course_str) > 0) ? atof(course_str) : 0.0f;
+    }
 
     // Update with spin lock protection
     uint32_t irq_state = spin_lock_blocking(gps_spin_lock);
@@ -127,7 +134,7 @@ static void apply_filtering_and_print() {
 
     // Print raw status even if no fix, so we know it's alive
     if (!gps_data.fix_valid) {
-        printf("[%d] Searching... (Sats: %d)\n", total_readings, gps_data.satellites);
+        safe_printf("[%d] Searching... (Sats: %d)\n", total_readings, gps_data.satellites);
         return;
     }
 
@@ -159,7 +166,7 @@ static void apply_filtering_and_print() {
     bool moving = gps_data.is_moving;
     spin_unlock(gps_spin_lock, irq_state);
 
-    printf("[%d] %s | %.6f, %.6f | %.1f kph | 5Hz\n", 
+    safe_printf("[%d] %s | %.6f, %.6f | %.1f kph | 5Hz\n", 
            total_readings,
            moving ? "MOVING" : "STATIC",
            disp_lat,
@@ -193,45 +200,104 @@ static void process_gps_data() {
 // --- Public Interface Implementation ---
 
 void gps_init(void) {
-    // Initialize spin lock for thread-safe access
     gps_spin_lock = spin_lock_init(spin_lock_claim_unused(true));
     
-    printf("1. Auto-detecting baud rate...\n");
-    uart_init(GPS_UART_ID, GPS_TARGET_BAUD);
+    safe_printf("1. Initializing GPS at 9600 baud...\n");
+    uart_init(GPS_UART_ID, 9600);
     gpio_set_function(GPS_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(GPS_RX_PIN, GPIO_FUNC_UART);
     
-    // Check if we are already fast
-    bool already_synced = false;
-    absolute_time_t timeout = make_timeout_time_ms(1000);
+    sleep_ms(1000);  // Longer stabilization time
+    
+    // Flush any garbage
+    while (uart_is_readable(GPS_UART_ID)) uart_getc(GPS_UART_ID);
+
+    // Test if GPS is responding at 9600
+    safe_printf("   Checking for GPS at 9600...\n");
+    bool found_at_9600 = false;
+    absolute_time_t timeout = make_timeout_time_ms(2000);
     while (!time_reached(timeout)) {
         if (uart_is_readable(GPS_UART_ID)) {
-            if (uart_getc(GPS_UART_ID) == '$') { already_synced = true; break; }
+            char c = uart_getc(GPS_UART_ID);
+            if (c == '$') {
+                found_at_9600 = true;
+                break;
+            }
         }
     }
-
-    if (!already_synced) {
-        printf("   - Not synced. Trying cold start sequence (9600 -> 57600)...\n");
-        uart_set_baudrate(GPS_UART_ID, 9600);
+    
+    if (!found_at_9600) {
+        // Maybe GPS is already at 57600 from previous run
+        safe_printf("   Not found at 9600, trying 57600...\n");
+        uart_set_baudrate(GPS_UART_ID, 57600);
         sleep_ms(100);
-        uart_puts(GPS_UART_ID, GPS_CMD_BAUD);
-        sleep_ms(200); 
-        uart_set_baudrate(GPS_UART_ID, GPS_TARGET_BAUD);
-        sleep_ms(100);
-    }
-
-    printf("2. Sending Configuration (5Hz + Optimized Output)...\n");
-    // Send multiple times to ensure the module catches it
-    for(int i=0; i<3; i++) { 
-        uart_puts(GPS_UART_ID, GPS_CMD_SET_OUTPUT); 
-        sleep_ms(50); 
-    }
-    for(int i=0; i<3; i++) { 
-        uart_puts(GPS_UART_ID, GPS_CMD_RATE); 
-        sleep_ms(50); 
+        while (uart_is_readable(GPS_UART_ID)) uart_getc(GPS_UART_ID);
+        
+        timeout = make_timeout_time_ms(2000);
+        while (!time_reached(timeout)) {
+            if (uart_is_readable(GPS_UART_ID)) {
+                char c = uart_getc(GPS_UART_ID);
+                if (c == '$') {
+                    safe_printf("   Found GPS at 57600!\n");
+                    goto configure_rate;
+                }
+            }
+        }
+        safe_printf("   WARNING: No GPS detected!\n");
+        return;
     }
     
-    printf(">> GPS Configured. Waiting for Fix...\n");
+    safe_printf("   Found GPS at 9600.\n");
+    
+    // Configure output sentences first (at 9600)
+    safe_printf("2. Configuring GPS output...\n");
+    for(int i=0; i<3; i++) { 
+        uart_puts(GPS_UART_ID, GPS_CMD_SET_OUTPUT); 
+        sleep_ms(100); 
+    }
+    
+    // Switch GPS to 57600 baud
+    safe_printf("3. Switching GPS to 57600 baud...\n");
+    uart_puts(GPS_UART_ID, "$PMTK251,57600*00\r\n");
+    sleep_ms(500);  // Give GPS time to switch
+    
+    // Switch Pico UART to match
+    uart_set_baudrate(GPS_UART_ID, 57600);
+    sleep_ms(200);
+    
+    // Flush and verify
+    while (uart_is_readable(GPS_UART_ID)) uart_getc(GPS_UART_ID);
+    
+    // Verify we can still communicate
+    safe_printf("   Verifying communication at 57600...\n");
+    timeout = make_timeout_time_ms(2000);
+    bool verified = false;
+    while (!time_reached(timeout)) {
+        if (uart_is_readable(GPS_UART_ID)) {
+            char c = uart_getc(GPS_UART_ID);
+            if (c == '$') {
+                verified = true;
+                break;
+            }
+        }
+    }
+    
+    if (!verified) {
+        safe_printf("   WARNING: Lost GPS after baud switch! Reverting to 9600.\n");
+        uart_set_baudrate(GPS_UART_ID, 9600);
+        safe_printf(">> GPS running at 9600 baud, 1Hz.\n");
+        return;
+    }
+    
+configure_rate:
+    // Set 5Hz update rate
+    safe_printf("4. Setting 5Hz update rate...\n");
+    for(int i=0; i<3; i++) { 
+        uart_puts(GPS_UART_ID, GPS_CMD_RATE);
+        sleep_ms(100); 
+    }
+    
+    safe_printf(">> GPS Configured: 57600 baud, 5Hz. Waiting for Fix...\n");
 }
 
 void gps_process(void) {

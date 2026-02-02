@@ -16,6 +16,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "lr1121_ping_pong.h"
+#include "safe_print.h"
+#include "gpio.h"
 
 /*
  * -----------------------------------------------------------------------------
@@ -43,13 +45,13 @@ static void isr(uint gpio, uint32_t events) {
  */
 void lora_tx_init(void)
 {
-    printf("[LORA] Initializing LR1121 for TX...\n");
+    safe_printf("[LORA] Initializing LR1121 for TX...\n");
     
     lora_init_io_context(&lr1121);
     lora_init_io(&lr1121);
     lora_spi_init(&lr1121);
 
-    printf("[LORA] LR11XX driver version: %s\n", lr11xx_driver_version_get_version_string());
+    safe_printf("[LORA] LR11XX driver version: %s\n", lr11xx_driver_version_get_version_string());
 
     lora_system_init(&lr1121);
     lora_print_version(&lr1121);
@@ -61,7 +63,7 @@ void lora_tx_init(void)
     ASSERT_LR11XX_RC(lr11xx_system_set_dio_irq_params(&lr1121, LR11XX_SYSTEM_IRQ_TX_DONE, 0));
     ASSERT_LR11XX_RC(lr11xx_system_clear_irq_status(&lr1121, LR11XX_SYSTEM_IRQ_ALL_MASK));
 
-    printf("[LORA] TX initialization complete\n");
+    safe_printf("[LORA] TX initialization complete\n");
 }
 
 /**
@@ -74,25 +76,81 @@ void lora_tx_init(void)
 bool lora_send(const uint8_t* data, uint8_t length)
 {
     if (length > PAYLOAD_LENGTH) {
-        printf("[LORA] Error: data length %d exceeds max %d\n", length, PAYLOAD_LENGTH);
         return false;
     }
 
     tx_done_flag = false;
     tx_count++;
+    
+    // Clear any pending errors and IRQs
+    lr11xx_system_clear_errors(&lr1121);
+    lr11xx_system_clear_irq_status(&lr1121, LR11XX_SYSTEM_IRQ_ALL_MASK);
+    
+    // Re-enable TCXO with longer timeout (500 * 30.52µs = ~15ms)
+    // This is needed because TCXO may have stopped in standby
+    lr11xx_system_set_tcxo_mode(&lr1121, LR11XX_SYSTEM_TCXO_CTRL_3_0V, 500);
+    
+    // Wait for TCXO to stabilize
+    sleep_ms(5);
+    
+    // Clear errors that may have been set during TCXO startup
+    lr11xx_system_clear_errors(&lr1121);
+    
+    // Set packet type (required before TX after fallback to standby)
+    lr11xx_radio_set_pkt_type(&lr1121, PACKET_TYPE);
+    
+    // Set RF frequency
+    lr11xx_radio_set_rf_freq(&lr1121, RF_FREQ_IN_HZ);
+    
+    // Re-apply LoRa modulation params
+    lr11xx_radio_mod_params_lora_t mod_params = {
+        .sf   = LORA_SPREADING_FACTOR,
+        .bw   = LORA_BANDWIDTH,
+        .cr   = LORA_CODING_RATE,
+        .ldro = 0
+    };
+    lr11xx_radio_set_lora_mod_params(&lr1121, &mod_params);
+    
+    // Re-apply LoRa packet params
+    lr11xx_radio_pkt_params_lora_t pkt_params = {
+        .preamble_len_in_symb = LORA_PREAMBLE_LENGTH,
+        .header_type          = LORA_PKT_LEN_MODE,
+        .pld_len_in_bytes     = PAYLOAD_LENGTH,
+        .crc                  = LORA_CRC,
+        .iq                   = LORA_IQ,
+    };
+    lr11xx_radio_set_lora_pkt_params(&lr1121, &pkt_params);
 
-    // Write data to radio buffer
-    ASSERT_LR11XX_RC(lr11xx_regmem_write_buffer8(&lr1121, data, length));
+    // Write data to radio buffer (pad to PAYLOAD_LENGTH)
+    uint8_t tx_buffer[PAYLOAD_LENGTH] = {0};
+    memcpy(tx_buffer, data, length);
+    
+    lr11xx_status_t rc = lr11xx_regmem_write_buffer8(&lr1121, tx_buffer, PAYLOAD_LENGTH);
+    if (rc != LR11XX_STATUS_OK) {
+        printf("[DBG] write_buffer failed: %d\n", rc);
+        return false;
+    }
+    
+    // Check for errors before TX
+    uint16_t sys_errors;
+    lr11xx_system_get_errors(&lr1121, &sys_errors);
+    if (sys_errors != 0) {
+        printf("[DBG] Pre-TX SysErr: 0x%04X\n", sys_errors);
+        lr11xx_system_clear_errors(&lr1121);
+    }
     
     // Start transmission
-    ASSERT_LR11XX_RC(lr11xx_radio_set_tx(&lr1121, 0));
+    rc = lr11xx_radio_set_tx(&lr1121, 0);
+    if (rc != LR11XX_STATUS_OK) {
+        printf("[DBG] set_tx failed: %d\n", rc);
+        return false;
+    }
 
     // Wait for TX to complete (polling with timeout)
-    uint32_t timeout_ms = 5000;
+    uint32_t timeout_ms = 2000;
     uint32_t start = to_ms_since_boot(get_absolute_time());
     
     while (!tx_done_flag) {
-        // Check IRQ register directly as backup
         lr11xx_system_irq_mask_t irq_status;
         lr11xx_system_get_irq_status(&lr1121, &irq_status);
         
@@ -102,17 +160,18 @@ bool lora_send(const uint8_t* data, uint8_t length)
         }
         
         if ((to_ms_since_boot(get_absolute_time()) - start) > timeout_ms) {
-            printf("[LORA] TX timeout!\n");
+            printf("[DBG] timeout IRQ: 0x%08lX\n", (unsigned long)irq_status);
+            lr11xx_system_clear_errors(&lr1121);
+            lr11xx_system_clear_irq_status(&lr1121, LR11XX_SYSTEM_IRQ_ALL_MASK);
             return false;
         }
         
         sleep_ms(1);
     }
 
-    // Clear the IRQ
-    ASSERT_LR11XX_RC(lr11xx_system_clear_irq_status(&lr1121, LR11XX_SYSTEM_IRQ_TX_DONE));
+    // Clear ALL IRQs after TX complete
+    lr11xx_system_clear_irq_status(&lr1121, LR11XX_SYSTEM_IRQ_ALL_MASK);
     
-    printf("[LORA] TX #%lu complete (%d bytes)\n", tx_count, length);
     return true;
 }
 

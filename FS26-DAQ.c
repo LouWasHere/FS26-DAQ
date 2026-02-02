@@ -2,8 +2,19 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "pico/mutex.h"  // Add this
 #include "gps.h"
 #include "lr1121_ping_pong.h"
+
+// Global mutex for printf
+mutex_t printf_mutex;
+
+// Thread-safe printf wrapper
+#define safe_printf(...) do { \
+    mutex_enter_blocking(&printf_mutex); \
+    printf(__VA_ARGS__); \
+    mutex_exit(&printf_mutex); \
+} while(0)
 
 // Shared data between cores (protected by spin lock in GPS module)
 static volatile bool core1_running = false;
@@ -22,13 +33,13 @@ typedef struct __attribute__((packed)) {
 
 // Core 1 entry point - LoRa GPS telemetry broadcast
 void core1_main() {
-    printf("Core 1: Initializing LoRa TX...\n");
+    safe_printf("Core 1: Initializing LoRa TX...\n");
     core1_running = true;
     
     // Initialize LoRa once
     lora_tx_init();
     
-    printf("Core 1: Starting GPS telemetry broadcast...\n");
+    safe_printf("Core 1: Starting GPS telemetry broadcast...\n");
     
     while (true) {
         // Get thread-safe copy of GPS data
@@ -48,9 +59,11 @@ void core1_main() {
         
         // Send it (blocking)
         if (lora_send((uint8_t*)&packet, sizeof(packet))) {
-            printf("[LORA] TX: %.6f, %.6f | %.1f kph | Sats:%d | Fix:%s\n",
+            safe_printf("[TX] %.6f, %.6f | %.1f kph | Sats:%d | #%u\n",
                    packet.latitude, packet.longitude, packet.speed_kph,
-                   packet.satellites, packet.fix_valid ? "Y" : "N");
+                   packet.satellites, packet.tx_count);
+        } else {
+            safe_printf("[TX] FAILED #%lu\n", lora_get_tx_count());
         }
         
         sleep_ms(1000);  // TX rate: 1Hz
@@ -59,15 +72,16 @@ void core1_main() {
 
 int main() {
     stdio_init_all();
+    mutex_init(&printf_mutex);  // Initialize mutex before anything else
     sleep_ms(2000); 
     
-    printf("Core 0: Initializing dual-core GPS + LoRa DAQ system...\n");
+    safe_printf("Core 0: Initializing dual-core GPS + LoRa DAQ system...\n");
     
     // Initialize GPS module on core 0
     gps_init();
     
     // Launch core 1 for LR1121 ping-pong
-    printf("Core 0: Launching Core 1 for LR1121 ping-pong...\n");
+    safe_printf("Core 0: Launching Core 1 for LR1121 ping-pong...\n");
     multicore_launch_core1(core1_main);
     
     // Wait for core 1 to be ready
@@ -75,7 +89,7 @@ int main() {
         sleep_ms(10);
     }
     
-    printf("Core 0: Both cores running. Starting GPS processing...\n");
+    safe_printf("Core 0: Both cores running. Starting GPS processing...\n");
     
     // Core 0 main loop - dedicated GPS processing
     while (true) {
