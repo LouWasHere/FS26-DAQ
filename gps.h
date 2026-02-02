@@ -7,7 +7,6 @@
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
 
-// --- Configuration ---
 #define GPS_UART_ID uart0
 #define GPS_TX_PIN 0
 #define GPS_RX_PIN 1

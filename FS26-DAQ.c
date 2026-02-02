@@ -2,7 +2,7 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
-#include "pico/mutex.h"  // Add this
+#include "pico/mutex.h"
 #include "gps.h"
 #include "lr1121_tx.h"
 
@@ -19,7 +19,7 @@ mutex_t printf_mutex;
 // Shared data between cores (protected by spin lock in GPS module)
 static volatile bool core1_running = false;
 
-// GPS telemetry packet structure (24 bytes now)
+// GPS telemetry packet structure
 typedef struct __attribute__((packed)) {
     uint32_t magic;         // 4 bytes - e.g., 0xFS26 or 0x46533236
     float    latitude;      // 4 bytes
@@ -80,7 +80,7 @@ int main() {
     // Initialize GPS module on core 0
     gps_init();
     
-    // Launch core 1 for LR1121 ping-pong
+    // Launch core 1 for LR1121
     safe_printf("Core 0: Launching Core 1 for LR1121 ping-pong...\n");
     multicore_launch_core1(core1_main);
     

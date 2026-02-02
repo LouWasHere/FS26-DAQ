@@ -4,7 +4,6 @@
 #include "gps.h"
 #include "safe_print.h"
 
-// --- Private Variables ---
 static char nmea_buffer[NMEA_BUFFER_SIZE];
 static int buffer_index = 0;
 static int total_readings = 0;
@@ -49,7 +48,7 @@ static bool verify_nmea_checksum(char* sentence) {
     return checksum == provided_checksum;
 }
 
-// --- NMEA Parsers ---
+// NMEA Parsers
 
 static void parse_gpgga(char* sentence) {
     char* cursor = sentence;
@@ -127,7 +126,7 @@ static void parse_gprmc(char* sentence) {
     spin_unlock(gps_spin_lock, irq_state);
 }
 
-// --- Logic Functions ---
+// Logic Functions
 
 static void apply_filtering_and_print() {
     total_readings++;
@@ -197,7 +196,7 @@ static void process_gps_data() {
     }
 }
 
-// --- Public Interface Implementation ---
+// Public Interface Implementation
 
 void gps_init(void) {
     gps_spin_lock = spin_lock_init(spin_lock_claim_unused(true));
