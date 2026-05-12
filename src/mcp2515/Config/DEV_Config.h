@@ -45,14 +45,6 @@
 /**
  * GPIOI config
 **/
-
-#define LCD_RST_PIN  12
-#define LCD_DC_PIN   8
-#define LCD_BL_PIN   13
-    
-#define LCD_CS_PIN   9
-#define LCD_CLK_PIN  10
-#define LCD_MOSI_PIN 11
     
 #define LCD_SCL_PIN  7
 #define LCD_SDA_PIN  6

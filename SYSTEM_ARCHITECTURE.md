@@ -96,12 +96,26 @@ Configuration:
 • Sentences: GPGGA (fix data), GPRMC (motion data)
 ```
 
-### SPI1 - LR1121 LoRa Radio & MCP2515 CAN (shared bus)
+### SPI0 - MCP2515 CAN Controller (Dedicated)
 ```
-GPIO 10 (SCLK)  ────► SCK   (both devices)
-GPIO 11 (MOSI)  ────► MOSI  (both devices)
-GPIO 12 (MISO)  ◄──── MISO  (both devices)
-GPIO 13 (CS)    ────► CS    (can be multiplexed)
+GPIO 4  (MISO)  ◄──── RX
+GPIO 6  (CLK)   ────► CLK
+GPIO 7  (MOSI)  ────► TX
+GPIO 5  (CS)    ────► CS
+
+Configuration:
+• Clock speed: 1 MHz
+• Mode: SPI mode 0 (CPOL=0, CPHA=0)
+• Bit order: MSB first
+• Baud: 1 Mbps CAN
+```
+
+### SPI1 - LR1121 LoRa Radio (Dedicated)
+```
+GPIO 10 (SCLK)  ────► CLK
+GPIO 11 (MOSI)  ────► TX
+GPIO 12 (MISO)  ◄──── RX
+GPIO 13 (CS)    ────► CS
 
 Radio signals:
 GPIO 8  (RESET) ────► LR1121 RST
@@ -112,17 +126,20 @@ Configuration:
 • Clock speed: 1 MHz
 • Mode: SPI mode 0 (CPOL=0, CPHA=0)
 • Bit order: MSB first
+• Frequency: 2.4 GHz
 ```
 
-### Can Bus - FT550 ECU (via MCP2515)
+### CAN Bus - FT550 ECU (via MCP2515)
 ```
-CAN H ◄─────────► MCP2515 → SPI1
-CAN L ◄─────────► MCP2515 → SPI1
+CAN H ◄─────────► MCP2515 → SPI0
+CAN L ◄─────────► MCP2515 → SPI0
 
 Configuration:
 • Baud rate: 1 Mbps
 • Frame format: Extended 29-bit CAN 2.0B
 • Message IDs: 0x14080600-0x14080608 (FT550)
+• Polling rate: 100 Hz capable
+```
 • Polling rate: 100 Hz capable
 ```
 
