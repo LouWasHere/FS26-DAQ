@@ -39,11 +39,13 @@ pico_sdk_init()
 add_subdirectory(./src/gpio)
 add_subdirectory(./src/spi)
 add_subdirectory(./src/lr1121)
+add_subdirectory(./src/mcp2515)
 
 # Add include directories
 include_directories(./src/gpio)
 include_directories(./src/spi)
 include_directories(./src/lr1121)
+include_directories(./src/mcp2515)
 
 # Include the LR1121 radio config and TX files
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
@@ -55,6 +57,8 @@ add_executable(FS26-DAQ
     gps.c      # <--- Check if this is named gps.c in your folder!
     lr1121_config.c
     lr1121_tx.c
+    can_handler.c
+    ft550_decoder.c
 )
 
 pico_set_program_name(FS26-DAQ "FS26-DAQ")
@@ -71,6 +75,7 @@ target_link_libraries(FS26-DAQ
         gpio
         spi
         lr1121
+        mcp2515
 )
 
 # Add the standard include files to the build

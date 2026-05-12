@@ -5,6 +5,8 @@
 #include "pico/mutex.h"
 #include "gps.h"
 #include "lr1121_tx.h"
+#include "can_handler.h"
+#include "ft550_decoder.h"
 
 // Global mutex for printf
 mutex_t printf_mutex;
@@ -19,49 +21,113 @@ mutex_t printf_mutex;
 // Shared data between cores (protected by spin lock in GPS module)
 static volatile bool core1_running = false;
 
-// GPS telemetry packet structure
+// GPS telemetry packet structure with integrated CAN data
 typedef struct __attribute__((packed)) {
-    uint32_t magic;         // 4 bytes - e.g., 0xFS26 or 0x46533236
+    uint32_t magic;         // 4 bytes - 0x46533236 ("FS26")
+    
+    // GPS Data
     float    latitude;      // 4 bytes
     float    longitude;     // 4 bytes
-    float    speed_kph;     // 4 bytes
+    float    gps_speed_kph; // 4 bytes
     float    altitude;      // 4 bytes
-    uint16_t tx_count;      // 2 bytes
     uint8_t  satellites;    // 1 byte
     uint8_t  fix_valid;     // 1 byte
-} gps_telemetry_packet_t;
+    
+    // CAN Data - Engine Parameters
+    uint16_t rpm;           // 2 bytes - RPM
+    float    engine_temp;   // 4 bytes - °C
+    float    tps;           // 4 bytes - Throttle Position %
+    
+    // CAN Data - Pressures & Fluids
+    float    oil_pressure;  // 4 bytes - Bar
+    float    fuel_pressure; // 4 bytes - Bar
+    float    brake_pressure;// 4 bytes - Bar
+    float    fuel_flow;     // 4 bytes - L/min
+    
+    // CAN Data - Wheel Speeds
+    uint16_t wheel_speed_fr;// 2 bytes - km/h
+    uint16_t wheel_speed_fl;// 2 bytes - km/h
+    uint16_t wheel_speed_rr;// 2 bytes - km/h
+    uint16_t wheel_speed_rl;// 2 bytes - km/h
+    
+    // CAN Data - Dynamics
+    float    g_force_lateral;// 4 bytes
+    float    heading;       // 4 bytes
+    
+    // Packet Metadata
+    uint16_t tx_count;      // 2 bytes - LoRa TX count
+    uint16_t can_frame_count;// 2 bytes - CAN frames received
+} combined_telemetry_packet_t;
 
-// Core 1 entry point - LoRa GPS telemetry broadcast
+// Core 1 entry point - LoRa broadcast with GPS + CAN telemetry
 void core1_main() {
     safe_printf("Core 1: Initializing LoRa TX...\n");
-    core1_running = true;
-    
-    // Initialize LoRa once
     lora_tx_init();
     
-    safe_printf("Core 1: Starting GPS telemetry broadcast...\n");
+    safe_printf("Core 1: Initializing CAN bus for FT550 data...\n");
+    can_init();
+    
+    core1_running = true;
+    
+    safe_printf("Core 1: Starting combined telemetry broadcast (GPS + CAN + LoRa)...\n");
     
     while (true) {
+        // Poll for incoming CAN frames (non-blocking)
+        can_process_frame();
+        
         // Get thread-safe copy of GPS data
         gps_data_t gps;
         gps_get_data_safe(&gps);
         
-        // Build telemetry packet
-        gps_telemetry_packet_t packet;
-        packet.magic      = 0x46533236;  // "FS26" in ASCII hex
-        packet.latitude   = (float)gps.raw_latitude;
-        packet.longitude  = (float)gps.raw_longitude;
-        packet.speed_kph  = (float)gps.speed_kph;
-        packet.altitude   = (float)gps.altitude;
-        packet.tx_count   = (uint16_t)lora_get_tx_count();
+        // Get thread-safe copy of CAN sensor data
+        ft550_sensor_data_t can_data;
+        can_get_sensor_data_safe(&can_data);
+        
+        // Build combined telemetry packet
+        combined_telemetry_packet_t packet;
+        packet.magic = 0x46533236;  // "FS26" magic number
+        
+        // GPS Data
+        packet.latitude = gps.raw_latitude;
+        packet.longitude = gps.raw_longitude;
+        packet.gps_speed_kph = gps.speed_kph;
+        packet.altitude = gps.altitude;
         packet.satellites = (uint8_t)gps.satellites;
-        packet.fix_valid  = gps.fix_valid ? 1 : 0;
+        packet.fix_valid = gps.fix_valid ? 1 : 0;
+        
+        // CAN Data - Engine Parameters
+        packet.rpm = can_data.rpm;
+        packet.engine_temp = can_data.engine_temp;
+        packet.tps = can_data.tps;
+        
+        // CAN Data - Pressures & Fluids
+        packet.oil_pressure = can_data.oil_pressure;
+        packet.fuel_pressure = can_data.fuel_pressure;
+        packet.brake_pressure = can_data.brake_pressure;
+        packet.fuel_flow = can_data.fuel_flow_total;
+        
+        // CAN Data - Wheel Speeds
+        packet.wheel_speed_fr = can_data.wheel_speed_fr;
+        packet.wheel_speed_fl = can_data.wheel_speed_fl;
+        packet.wheel_speed_rr = can_data.wheel_speed_rr;
+        packet.wheel_speed_rl = can_data.wheel_speed_rl;
+        
+        // CAN Data - Dynamics
+        packet.g_force_lateral = can_data.g_force_lateral;
+        packet.heading = can_data.heading;
+        
+        // Packet Metadata
+        packet.tx_count = (uint16_t)lora_get_tx_count();
+        packet.can_frame_count = (uint16_t)(can_get_frame_count() & 0xFFFF);
         
         // Send it (blocking)
         if (lora_send((uint8_t*)&packet, sizeof(packet))) {
-            safe_printf("[TX] %.6f, %.6f | %.1f kph | Sats:%d | #%u\n",
-                   packet.latitude, packet.longitude, packet.speed_kph,
-                   packet.satellites, packet.tx_count);
+            safe_printf("[TX] GPS:%.6f,%.6f | RPM:%u | Brake:%.3f | WheelSp(FR/FL/RR/RL):%u/%u/%u/%u | TX#%u CAN#%u\n",
+                   packet.latitude, packet.longitude, 
+                   packet.rpm, packet.brake_pressure,
+                   packet.wheel_speed_fr, packet.wheel_speed_fl, 
+                   packet.wheel_speed_rr, packet.wheel_speed_rl,
+                   packet.tx_count, packet.can_frame_count);
         } else {
             safe_printf("[TX] FAILED #%lu\n", lora_get_tx_count());
         }
