@@ -140,9 +140,6 @@ Configuration:
 • Message IDs: 0x14080600-0x14080608 (FT550)
 • Polling rate: 100 Hz capable
 ```
-• Polling rate: 100 Hz capable
-```
-
 ---
 
 ## Module Dependencies
