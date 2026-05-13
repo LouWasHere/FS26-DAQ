@@ -5,6 +5,7 @@
 
 #include "can_handler.h"
 #include "src/mcp2515/MCP2515/MCP2515.h"
+#include "src/mcp2515/Config/DEV_Config.h"
 #include <stdio.h>
 
 // Global state
@@ -32,6 +33,9 @@ void can_init(void) {
     // Create spin lock for thread-safe access
     g_spin_lock = spin_lock_instance(spin_lock_claim_unused(true));
     
+    // Initialize hardware (SPI, GPIO, etc.) - MUST be called before MCP2515_Init()
+    DEV_Module_Init();
+    
     // Initialize MCP2515
     MCP2515_Init();
     
@@ -45,10 +49,15 @@ bool can_process_frame(void) {
     for (size_t i = 0; i < sizeof(FT550_FRAME_IDS) / sizeof(FT550_FRAME_IDS[0]); i++) {
         uint32_t frame_id = FT550_FRAME_IDS[i];
         
-        // MCP2515_Receive is blocking/polling - it returns if frame available or timeout
-        // We'll use a non-blocking approach by checking register directly
-        // For now, attempt receive for each known ID
-        MCP2515_Receive(frame_id, rx_buffer);
+        // MCP2515_Receive now has timeout to prevent hanging (100ms)
+        // Returns: 0=message received, 1=timeout, -1=error
+        int8_t rx_status = MCP2515_Receive(frame_id, rx_buffer, 100);
+        
+        // Only process frame if message was successfully received
+        if (rx_status != 0) {
+            // Timeout or error - continue to next frame ID
+            continue;
+        }
         
         // Try to decode frame
         ft550_sensor_data_t temp_data;

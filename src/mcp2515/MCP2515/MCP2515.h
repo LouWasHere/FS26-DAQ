@@ -406,7 +406,14 @@ function:
 enum RATEBPS {KBPS5 = 0, KBPS10, KBPS20, KBPS50, KBPS100, KBPS125, KBPS250, KBPS500, KBPS800, KBPS1000 };
 void MCP2515_Init(void);
 void MCP2515_Send(uint32_t Canid, uint8_t *Buf, uint8_t len);
-void MCP2515_Receive(uint32_t Canid, uint8_t *CAN_RX_Buf);
+/**
+ * @brief Receive CAN message with timeout
+ * @param Canid CAN ID to receive
+ * @param CAN_RX_Buf Buffer to store received data
+ * @param timeout_ms Timeout in milliseconds (0 = no timeout, use with caution)
+ * @return 0 if message received, 1 if timeout, -1 if error
+ */
+int8_t MCP2515_Receive(uint32_t Canid, uint8_t *CAN_RX_Buf, uint32_t timeout_ms);
 
 #endif  
 	 

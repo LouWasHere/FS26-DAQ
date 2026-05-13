@@ -49,7 +49,7 @@
 #define PA_RAMP_TIME LR11XX_RADIO_RAMP_48_US
 #define FALLBACK_MODE LR11XX_RADIO_FALLBACK_STDBY_RC
 #define ENABLE_RX_BOOST_MODE false
-#define PAYLOAD_LENGTH 32
+#define PAYLOAD_LENGTH 128  // Increased from 32 to accommodate combined telemetry packet (~68 bytes)
 
 /*! 
  * @brief Modulation parameters for LoRa packets

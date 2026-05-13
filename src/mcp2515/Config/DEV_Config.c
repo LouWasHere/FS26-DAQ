@@ -118,7 +118,9 @@ Info:
 ******************************************************************************/
 UBYTE DEV_Module_Init(void)
 {
-    stdio_init_all();   
+    // Note: stdio_init_all() should already be called once in main()
+    // Calling it again here would cause an assertion failure on repeated init
+    
     // SPI Config
     spi_init(SPI_PORT, 10000 * 1000);
     gpio_set_function(SPI_CLK_PIN, GPIO_FUNC_SPI);

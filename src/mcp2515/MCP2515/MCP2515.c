@@ -11,6 +11,7 @@
  ******************************************************************************/
 #include "MCP2515.h"
 #include "DEV_Config.h"
+#include "pico/time.h"
 // #include "Log_debug.h"
 
 static void MCP2515_WriteByte(uint8_t Addr)
@@ -108,10 +109,12 @@ void MCP2515_Init(void)
     MCP2515_WriteBytes(CANCTRL, REQOP_NORMAL | CLKOUT_ENABLED);
 
     uint8_t dummy = MCP2515_ReadByte(CANSTAT);
-    if ((dummy&&0xe0) != OPMODE_NORMAL) {
+    if ((dummy&0xe0) != OPMODE_NORMAL) {
         printf("OPMODE_NORMAL\r\n");
         MCP2515_WriteBytes(CANCTRL, REQOP_NORMAL | CLKOUT_ENABLED);  // #set normal mode
     }
+
+    printf("MCP2515 Init Complete\r\n");
 }
 
 void MCP2515_Send(uint32_t Canid, uint8_t *Buf, uint8_t len)
@@ -136,12 +139,31 @@ void MCP2515_Send(uint32_t Canid, uint8_t *Buf, uint8_t len)
     MCP2515_WriteBytes(TXB0CTRL, 0x08);
 }
 
-void MCP2515_Receive(uint32_t Canid, uint8_t *CAN_RX_Buf)
+/**
+ * @brief Receive CAN message with timeout
+ * @param Canid CAN ID to receive
+ * @param CAN_RX_Buf Buffer to store received data
+ * @param timeout_ms Timeout in milliseconds (0 = no timeout, use with caution)
+ * @return 0 if message received, 1 if timeout, -1 if error
+ */
+int8_t MCP2515_Receive(uint32_t Canid, uint8_t *CAN_RX_Buf, uint32_t timeout_ms)
 {
 	MCP2515_WriteBytes(RXB0SIDH, (Canid>>3)&0XFF);
 	MCP2515_WriteBytes(RXB0SIDL, (Canid&0x07)<<5);
-	// uint8_t CAN_RX_Buf[];
+	
+	uint32_t start_time = to_ms_since_boot(get_absolute_time());
+	
 	while(1){
+		// Check for timeout (if timeout_ms is 0, skip timeout check)
+		if(timeout_ms > 0) {
+			uint32_t elapsed = to_ms_since_boot(get_absolute_time()) - start_time;
+			if(elapsed >= timeout_ms) {
+				printf("CAN RX timeout: no message after %lu ms\r\n", timeout_ms);
+				return 1;  // Timeout
+			}
+		}
+		
+		// Check for receive interrupt flag
 		if(MCP2515_ReadByte(CANINTF) & 0x01){
 			uint8_t len = MCP2515_ReadByte(RXB0DLC);
 			// printf("len = %d\r\n", len);
@@ -149,13 +171,15 @@ void MCP2515_Receive(uint32_t Canid, uint8_t *CAN_RX_Buf)
 				CAN_RX_Buf[i] = MCP2515_ReadByte(RXB0D0+i);
 				// printf("rx buf =%d\r\n",CAN_RX_Buf[i]);
 			}
-			break;
+			
+			MCP2515_WriteBytes(CANINTF, 0);
+			MCP2515_WriteBytes(CANINTE,0x01);//enable
+			MCP2515_WriteBytes(RXB0SIDH,0x00);//clean
+			MCP2515_WriteBytes(RXB0SIDL,0x60);
+			return 0;  // Success
 		}
+		
+		// Yield to prevent watchdog timeout
+		sleep_ms(1);
 	}
-
-	MCP2515_WriteBytes(CANINTF, 0);
-	MCP2515_WriteBytes(CANINTE,0x01);//enable
-	MCP2515_WriteBytes(RXB0SIDH,0x00);//clean
-	MCP2515_WriteBytes(RXB0SIDL,0x60);
-	// return CAN_RX_Buf
 }

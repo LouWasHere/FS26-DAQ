@@ -76,11 +76,13 @@ void lora_tx_init(void)
 bool lora_send(const uint8_t* data, uint8_t length)
 {
     if (length > PAYLOAD_LENGTH) {
+        printf("[DBG] TX: payload too large (%u > %u)\n", length, PAYLOAD_LENGTH);
         return false;
     }
 
     tx_done_flag = false;
     tx_count++;
+    printf("[DBG] TX #%lu: Starting send, data_len=%u\n", tx_count, length);
     
     // Clear any pending errors and IRQs
     lr11xx_system_clear_errors(&lr1121);
@@ -139,28 +141,45 @@ bool lora_send(const uint8_t* data, uint8_t length)
         lr11xx_system_clear_errors(&lr1121);
     }
     
+    // Get radio status before TX
+    lr11xx_system_irq_mask_t irq_status_before;
+    lr11xx_system_get_status(&lr1121, NULL, NULL, &irq_status_before);
+    printf("[DBG] Radio status before TX: irq=0x%08lX\n", (unsigned long)irq_status_before);
+    
     // Start transmission
     rc = lr11xx_radio_set_tx(&lr1121, 0);
     if (rc != LR11XX_STATUS_OK) {
         printf("[DBG] set_tx failed: %d\n", rc);
         return false;
     }
+    printf("[DBG] TX: Radio set to TX mode\n");
+    
+    // Check radio status immediately after set_tx
+    sleep_ms(10);
+    lr11xx_system_irq_mask_t irq_status_after;
+    lr11xx_system_get_status(&lr1121, NULL, NULL, &irq_status_after);
+    printf("[DBG] Radio status after set_tx: irq=0x%08lX\n", (unsigned long)irq_status_after);
 
     // Wait for TX to complete (polling with timeout)
     uint32_t timeout_ms = 2000;
     uint32_t start = to_ms_since_boot(get_absolute_time());
+    uint32_t poll_count = 0;
     
     while (!tx_done_flag) {
         lr11xx_system_irq_mask_t irq_status;
         lr11xx_system_get_irq_status(&lr1121, &irq_status);
+        poll_count++;
         
         if (irq_status & LR11XX_SYSTEM_IRQ_TX_DONE) {
+            printf("[DBG] TX: TX_DONE IRQ detected after %lu polls\n", poll_count);
             tx_done_flag = true;
             break;
         }
         
-        if ((to_ms_since_boot(get_absolute_time()) - start) > timeout_ms) {
-            printf("[DBG] timeout IRQ: 0x%08lX\n", (unsigned long)irq_status);
+        uint32_t elapsed = to_ms_since_boot(get_absolute_time()) - start;
+        if (elapsed > timeout_ms) {
+            printf("[DBG] TX timeout after %lums (%lu polls): irq_status=0x%08lX\n", 
+                   elapsed, poll_count, (unsigned long)irq_status);
             lr11xx_system_clear_errors(&lr1121);
             lr11xx_system_clear_irq_status(&lr1121, LR11XX_SYSTEM_IRQ_ALL_MASK);
             return false;
@@ -171,6 +190,7 @@ bool lora_send(const uint8_t* data, uint8_t length)
 
     // Clear ALL IRQs after TX complete
     lr11xx_system_clear_irq_status(&lr1121, LR11XX_SYSTEM_IRQ_ALL_MASK);
+    printf("[DBG] TX #%lu: TX complete!\n", tx_count);
     
     return true;
 }
