@@ -116,7 +116,7 @@ bool can_process_frame(void) {
                 }
                 g_frame_count++;
             }
-            spin_lock_unsafe_blocking_exit(g_spin_lock, lock_owner);
+            spin_unlock(g_spin_lock, lock_owner);
             
             return true;
         }
@@ -134,7 +134,7 @@ void can_get_sensor_data_safe(ft550_sensor_data_t* sensor_data) {
     {
         *sensor_data = g_sensor_data;
     }
-    spin_lock_unsafe_blocking_exit(g_spin_lock, lock_owner);
+    spin_unlock(g_spin_lock, lock_owner);
 }
 
 uint32_t can_get_frame_count(void) {

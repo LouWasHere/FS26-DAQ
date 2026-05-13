@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 
 /**
  * FT550 CAN Frame IDs (Extended 29-bit)
