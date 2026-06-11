@@ -68,16 +68,16 @@ void MCP2515_Init(void)
     MCP2515_Reset();
     DEV_Delay_ms(100);
 
-    // #set baud rate 125Kbps
+    // #set baud rate 1000Kbps
     // #<7:6>SJW=00(1TQ)
     // #<5:0>BRP=0x03(TQ=[2*(BRP+1)]/Fsoc=2*4/8M=1us)
     // #<5:0>BRP=0x03 (TQ=[2*(BRP+1)]/Fsoc=2*8/16M=1us)
     // # MCP2515_WriteBytes(CNF1, 7)
     // # MCP2515_WriteBytes(CNF2,0x80|PHSEG1_3TQ|PRSEG_1TQ)
     // # MCP2515_WriteBytes(CNF3,PHSEG2_3TQ)
-    MCP2515_WriteBytes(CNF1, CAN_RATE[KBPS125][0]);
-    MCP2515_WriteBytes(CNF2, CAN_RATE[KBPS125][1]);
-    MCP2515_WriteBytes(CNF3, CAN_RATE[KBPS125][2]);
+    MCP2515_WriteBytes(CNF1, CAN_RATE[KBPS1000][0]);
+    MCP2515_WriteBytes(CNF2, CAN_RATE[KBPS1000][1]);
+    MCP2515_WriteBytes(CNF3, CAN_RATE[KBPS1000][2]);
     // MCP2515_WriteBytes
     // MCP2515_WriteBytes
 
