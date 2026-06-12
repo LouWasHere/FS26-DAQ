@@ -183,3 +183,47 @@ int8_t MCP2515_Receive(uint32_t Canid, uint8_t *CAN_RX_Buf, uint32_t timeout_ms)
 		sleep_ms(1);
 	}
 }
+
+int8_t MCP2515_Receive_Fast(uint32_t *frame_id, uint8_t *CAN_RX_Buf)
+{
+    // 1. Read Interrupt Flag to see which buffer has data (0x2C is CANINTF)
+    uint8_t status = MCP2515_ReadByte(0x2C); 
+    
+    uint8_t rx_base;
+    if (status & 0x01) {
+        rx_base = RXB0CTRL + 1; // RXB0SIDH is 0x61
+    } else if (status & 0x02) {
+        rx_base = RXB1CTRL + 1; // RXB1SIDH is 0x71
+    } else {
+        return -1; // No data waiting, exit instantly
+    }
+
+    // 2. Read ID Registers
+    uint8_t sidh = MCP2515_ReadByte(rx_base);
+    uint8_t sidl = MCP2515_ReadByte(rx_base + 1);
+    uint8_t eid8 = MCP2515_ReadByte(rx_base + 2);
+    uint8_t eid0 = MCP2515_ReadByte(rx_base + 3);
+
+    // 3. Reconstruct 29-bit Extended ID
+    uint32_t sid = (sidh << 3) | (sidl >> 5);
+    uint32_t eid = ((sidl & 0x03) << 16) | (eid8 << 8) | eid0;
+    *frame_id = (sid << 18) | eid;
+
+    // 4. Read DLC (Data Length Code)
+    uint8_t len = MCP2515_ReadByte(rx_base + 4) & 0x0F;
+    if(len > 8) len = 8;
+
+    // 5. Read Payload
+    for(uint8_t i = 0; i < len; i++){
+        CAN_RX_Buf[i] = MCP2515_ReadByte(rx_base + 5 + i);
+    }
+    
+    // 6. Clear the specific interrupt flag so the chip can receive the next frame
+    if (rx_base == RXB0CTRL + 1) {
+        MCP2515_WriteBytes(0x2C, status & ~0x01); // Clear RX0IF
+    } else {
+        MCP2515_WriteBytes(0x2C, status & ~0x02); // Clear RX1IF
+    }
+
+    return 0; // Success
+}

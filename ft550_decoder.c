@@ -5,6 +5,7 @@
 
 #include "ft550_decoder.h"
 #include <string.h>
+#include <stdio.h>
 
 void ft550_init_sensor_data(ft550_sensor_data_t* sensor_data) {
     if (sensor_data) {
@@ -135,6 +136,7 @@ bool ft550_decode_frame(uint32_t frame_id, const uint8_t* data,
 
         default:
             // Unrecognized frame ID
+            // printf("Warning: Unrecognized FT550 frame ID: 0x%08X\n", frame_id);
             return false;
     }
 }

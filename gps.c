@@ -133,7 +133,7 @@ static void apply_filtering_and_print() {
 
     // Print raw status even if no fix, so we know it's alive
     if (!gps_data.fix_valid) {
-        safe_printf("[%d] Searching... (Sats: %d)\n", total_readings, gps_data.satellites);
+        // safe_printf("[%d] Searching... (Sats: %d)\n", total_readings, gps_data.satellites);
         return;
     }
 
@@ -165,12 +165,12 @@ static void apply_filtering_and_print() {
     bool moving = gps_data.is_moving;
     spin_unlock(gps_spin_lock, irq_state);
 
-    safe_printf("[%d] %s | %.6f, %.6f | %.1f kph | 5Hz\n", 
-           total_readings,
-           moving ? "MOVING" : "STATIC",
-           disp_lat,
-           disp_lon,
-           spd);
+    // safe_printf("[%d] %s | %.6f, %.6f | %.1f kph | 5Hz\n", 
+    //        total_readings,
+    //        moving ? "MOVING" : "STATIC",
+    //        disp_lat,
+    //        disp_lon,
+    //        spd);
 }
 
 static void process_gps_data() {

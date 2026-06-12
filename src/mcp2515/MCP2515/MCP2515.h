@@ -415,5 +415,14 @@ void MCP2515_Send(uint32_t Canid, uint8_t *Buf, uint8_t len);
  */
 int8_t MCP2515_Receive(uint32_t Canid, uint8_t *CAN_RX_Buf, uint32_t timeout_ms);
 
+/**
+ * @brief Fast, non-blocking read of ANY available CAN message in either buffer.
+ * Bypasses Waveshare's blocking ID filters and sleep yields.
+ * @param frame_id Pointer to store the decoded 29-bit Extended ID
+ * @param CAN_RX_Buf Buffer to store the up-to-8 byte payload
+ * @return 0 if a message was read, -1 if buffers are empty
+ */
+int8_t MCP2515_Receive_Fast(uint32_t *frame_id, uint8_t *CAN_RX_Buf);
+
 #endif  
 	 

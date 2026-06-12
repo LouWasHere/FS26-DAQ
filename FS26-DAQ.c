@@ -71,10 +71,7 @@ void core1_main() {
     
     safe_printf("Core 1: Starting combined telemetry broadcast (GPS + CAN + LoRa)...\n");
     
-    while (true) {
-        // Poll for incoming CAN frames (non-blocking)
-        can_process_frame();
-        
+    while (true) {        
         // Get thread-safe copy of GPS data
         gps_data_t gps;
         gps_get_data_safe(&gps);
@@ -122,9 +119,9 @@ void core1_main() {
         
         // Send it (blocking)
         if (lora_send((uint8_t*)&packet, sizeof(packet))) {
-            safe_printf("[TX] GPS:%.6f,%.6f | RPM:%u | Brake:%.3f | WheelSp(FR/FL/RR/RL):%u/%u/%u/%u | TX#%u CAN#%u\n",
+            safe_printf("[TX] GPS:%.6f,%.6f | RPM:%u | TPS:%.3f | WheelSp(FR/FL/RR/RL):%u/%u/%u/%u | TX#%u CAN#%u\n",
                    packet.latitude, packet.longitude, 
-                   packet.rpm, packet.brake_pressure,
+                   packet.rpm, packet.tps,
                    packet.wheel_speed_fr, packet.wheel_speed_fl, 
                    packet.wheel_speed_rr, packet.wheel_speed_rl,
                    packet.tx_count, packet.can_frame_count);
@@ -157,11 +154,18 @@ int main() {
     
     safe_printf("Core 0: Both cores running. Starting GPS processing...\n");
     
-    // Core 0 main loop - dedicated GPS processing
+    // Core 0 main loop - dedicated GPS & CAN processing
     while (true) {
+        // Poll GPS UART
         gps_process();
         
-        // Optional: Add small delay to prevent overwhelming the system
+        // DRAIN LOOP: Pull every waiting message out of the MCP2515 
+        // until the hardware buffer is completely empty.
+        while (can_process_frame()) {
+            // Keep looping as long as it returns true!
+        }
+        
+        // Small delay to prevent locking the bus completely
         sleep_us(100);
     }
 }
