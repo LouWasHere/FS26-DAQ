@@ -44,85 +44,63 @@ void can_init(void) {
 
 bool can_process_frame(void) {
     uint32_t received_id = 0;
-    uint8_t rx_buffer[8];
+    uint8_t rx_buffer[8] = {0}; 
     
-    // Call our fast, non-blocking hardware read
+    // Check for a frame on the bus (Ensure this function handles 11-bit IDs!)
     if (MCP2515_Receive_Fast(&received_id, rx_buffer) != 0) {
-        return false; // Nothing waiting, exit instantly
+        return false; 
     }
-    
-    ft550_sensor_data_t temp_data;
-    
-    // If ft550_decode_frame recognizes the ID, it populates temp_data and returns true
-    if (ft550_decode_frame(received_id, rx_buffer, &temp_data)) {
+
+    // Only process the M84 Dash Logger ID (0x100)
+    // Ignore the slower diagnostic stream (0x220, etc.)
+    if (received_id != 0x100) return true; 
+
+    // Static buffers retain their values between function calls
+    static uint8_t m84_block[200]; 
+    static int frame_index = 0;
+    static uint32_t last_rx_time = 0;
+
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+
+    // If there is a gap of >5ms, the previous burst finished. Decode it!
+    if ((current_time - last_rx_time) > 5) {
         
-        // Lock the global struct to update it safely
-        uint32_t lock_owner = spin_lock_blocking(g_spin_lock);
-        {
-            switch (received_id) {
-                case FT550_FRAME_TPS_MAP_TEMPS:
-                    g_sensor_data.tps = temp_data.tps;
-                    g_sensor_data.map = temp_data.map;
-                    g_sensor_data.air_temp = temp_data.air_temp;
-                    g_sensor_data.engine_temp = temp_data.engine_temp;
-                    break;
-                case FT550_FRAME_PRESSURES_GEAR:
-                    g_sensor_data.oil_pressure = temp_data.oil_pressure;
-                    g_sensor_data.fuel_pressure = temp_data.fuel_pressure;
-                    g_sensor_data.water_pressure = temp_data.water_pressure;
-                    g_sensor_data.gear = temp_data.gear;
-                    break;
-                case FT550_FRAME_O2_RPM_TEMPS:
-                    g_sensor_data.exhaust_o2 = temp_data.exhaust_o2;
-                    g_sensor_data.rpm = temp_data.rpm;
-                    g_sensor_data.oil_temp = temp_data.oil_temp;
-                    g_sensor_data.pit_limit = temp_data.pit_limit;
-                    break;
-                case FT550_FRAME_WHEEL_SPEEDS:
-                    g_sensor_data.wheel_speed_fr = temp_data.wheel_speed_fr;
-                    g_sensor_data.wheel_speed_fl = temp_data.wheel_speed_fl;
-                    g_sensor_data.wheel_speed_rr = temp_data.wheel_speed_rr;
-                    g_sensor_data.wheel_speed_rl = temp_data.wheel_speed_rl;
-                    break;
-                case FT550_FRAME_TRACTION_HEADING:
-                    g_sensor_data.traction_ctrl_slip = temp_data.traction_ctrl_slip;
-                    g_sensor_data.traction_ctrl_retard = temp_data.traction_ctrl_retard;
-                    g_sensor_data.traction_ctrl_cut = temp_data.traction_ctrl_cut;
-                    g_sensor_data.heading = temp_data.heading;
-                    break;
-                case FT550_FRAME_SHOCK_SENSORS:
-                    g_sensor_data.shock_fr = temp_data.shock_fr;
-                    g_sensor_data.shock_fl = temp_data.shock_fl;
-                    g_sensor_data.shock_rr = temp_data.shock_rr;
-                    g_sensor_data.shock_rl = temp_data.shock_rl;
-                    break;
-                case FT550_FRAME_G_FORCE_YAW:
-                    g_sensor_data.g_force_accel = temp_data.g_force_accel;
-                    g_sensor_data.g_force_lateral = temp_data.g_force_lateral;
-                    g_sensor_data.yaw_rate_frontal = temp_data.yaw_rate_frontal;
-                    g_sensor_data.yaw_rate_lateral = temp_data.yaw_rate_lateral;
-                    break;
-                case FT550_FRAME_FUEL_LAMBDA:
-                    g_sensor_data.lambda_correction = temp_data.lambda_correction;
-                    g_sensor_data.fuel_flow_total = temp_data.fuel_flow_total;
-                    g_sensor_data.inj_time_bank_a = temp_data.inj_time_bank_a;
-                    g_sensor_data.inj_time_bank_b = temp_data.inj_time_bank_b;
-                    break;
-                case FT550_FRAME_TRANS_TEMPS_FUEL:
-                    g_sensor_data.trans_oil_temp = temp_data.trans_oil_temp;
-                    g_sensor_data.trans_temp = temp_data.trans_temp;
-                    g_sensor_data.fuel_consumption = temp_data.fuel_consumption;
-                    g_sensor_data.brake_pressure = temp_data.brake_pressure;
-                    break;
+        // Ensure we caught a complete block (M84 Dash stream is usually ~20 frames)
+        if (frame_index >= 20) {
+            
+            // Helper macro for MoTeC 16-bit Big-Endian extraction
+            #define MOTEC_I16(offset) ((int16_t)((m84_block[offset] << 8) | m84_block[offset + 1]))
+
+            uint32_t lock_owner = spin_lock_blocking(g_spin_lock);
+            {
+                // Core Engine Data
+                g_sensor_data.rpm = MOTEC_I16(16);                  
+                g_sensor_data.map = MOTEC_I16(18) * 0.1f;           
+                g_sensor_data.engine_temp = MOTEC_I16(20) * 0.1f;   
+                g_sensor_data.air_temp = MOTEC_I16(22) * 0.1f;      
+                g_sensor_data.tps = MOTEC_I16(24) * 0.1f;           
+                
+                // If you add Battery Voltage to your global struct, uncomment this:
+                // g_sensor_data.battery_voltage = MOTEC_I16(56) * 0.01f;
+                
+                g_frame_count++;
             }
-            g_frame_count++;
+            spin_unlock(g_spin_lock, lock_owner);
         }
-        spin_unlock(g_spin_lock, lock_owner);
         
-        return true;
+        // Reset the index to start assembling the new burst
+        frame_index = 0; 
     }
     
-    return false; // Was a CAN frame, but not an FT550 frame we care about
+    last_rx_time = current_time;
+
+    // Sequentially copy the 8 bytes from this frame into our master block array
+    if (frame_index < 25) { // 25 * 8 = 200 bytes max (prevents buffer overflow)
+        memcpy(&m84_block[frame_index * 8], rx_buffer, 8);
+        frame_index++;
+    }
+
+    return true; 
 }
 
 void can_get_sensor_data_safe(ft550_sensor_data_t* sensor_data) {
