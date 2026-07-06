@@ -119,10 +119,8 @@ void core1_main() {
         
         // Send it (blocking)
         if (lora_send((uint8_t*)&packet, sizeof(packet))) {
-            safe_printf("[TX] GPS:%.6f,%.6f | Batt:%.2f | TPS:%.3f | EngineTemp:%.1f | TX#%u CAN#%u\n",
-                   packet.latitude, packet.longitude, 
-                   packet.battery_voltage, packet.tps,
-                   packet.engine_temp,
+            safe_printf("[TX] RPM:%u | Batt:%.2f | TPS:%.3f | EngineTemp:%.1f | TX#%u CAN#%u\n",
+                   packet.rpm, packet.battery_voltage, packet.tps, packet.engine_temp,
                    packet.tx_count, packet.can_frame_count);
         } else {
             safe_printf("[TX] FAILED #%lu\n", lora_get_tx_count());

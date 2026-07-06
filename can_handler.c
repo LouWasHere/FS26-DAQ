@@ -80,7 +80,7 @@ bool can_process_frame(void) {
                 // Dynamically map based on the anchor position
                 // (anchor_idx is normally 8, but will adapt if frames drop)
                 g_sensor_data.tps = MOTEC_I16(anchor_idx + 6) * 0.1f;           
-                g_sensor_data.rpm = MOTEC_I16(anchor_idx + 8);                  
+                g_sensor_data.rpm = MOTEC_I16(anchor_idx + 4);                
                 g_sensor_data.engine_temp = MOTEC_I16(anchor_idx + 12) * 0.1f;   
                 g_sensor_data.air_temp = MOTEC_I16(anchor_idx + 14) * 0.1f;      
                 g_sensor_data.battery_voltage = MOTEC_I16(anchor_idx + 48) * 0.01f;
