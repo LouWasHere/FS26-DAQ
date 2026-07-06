@@ -78,6 +78,7 @@ typedef struct {
     // Frame 0x14080607 - Lambda, Fuel Flow, Injection
     float lambda_correction;            // Raw (No multiplier)
     float fuel_flow_total;              // L/min (Raw × 0.01)
+    float battery_voltage;              // V (Raw × 0.01)
     float inj_time_bank_a;              // ms (Raw × 0.01)
     float inj_time_bank_b;              // ms (Raw × 0.01)
     

@@ -42,7 +42,7 @@ typedef struct __attribute__((packed)) {
     float    oil_pressure;  // 4 bytes - Bar
     float    fuel_pressure; // 4 bytes - Bar
     float    brake_pressure;// 4 bytes - Bar
-    float    fuel_flow;     // 4 bytes - L/min
+    float    battery_voltage; // 4 bytes - V
     
     // CAN Data - Wheel Speeds
     uint16_t wheel_speed_fr;// 2 bytes - km/h
@@ -101,7 +101,7 @@ void core1_main() {
         packet.oil_pressure = can_data.oil_pressure;
         packet.fuel_pressure = can_data.fuel_pressure;
         packet.brake_pressure = can_data.brake_pressure;
-        packet.fuel_flow = can_data.fuel_flow_total;
+        packet.battery_voltage = can_data.battery_voltage;
         
         // CAN Data - Wheel Speeds
         packet.wheel_speed_fr = can_data.wheel_speed_fr;
@@ -119,11 +119,10 @@ void core1_main() {
         
         // Send it (blocking)
         if (lora_send((uint8_t*)&packet, sizeof(packet))) {
-            safe_printf("[TX] GPS:%.6f,%.6f | RPM:%u | TPS:%.3f | WheelSp(FR/FL/RR/RL):%u/%u/%u/%u | TX#%u CAN#%u\n",
+            safe_printf("[TX] GPS:%.6f,%.6f | Batt:%.2f | TPS:%.3f | EngineTemp:%.1f | TX#%u CAN#%u\n",
                    packet.latitude, packet.longitude, 
-                   packet.rpm, packet.tps,
-                   packet.wheel_speed_fr, packet.wheel_speed_fl, 
-                   packet.wheel_speed_rr, packet.wheel_speed_rl,
+                   packet.battery_voltage, packet.tps,
+                   packet.engine_temp,
                    packet.tx_count, packet.can_frame_count);
         } else {
             safe_printf("[TX] FAILED #%lu\n", lora_get_tx_count());
