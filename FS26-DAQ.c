@@ -7,6 +7,7 @@
 #include "lr1121_tx.h"
 #include "can_handler.h"
 #include "ft550_decoder.h"
+#include "src/mcp2515/MCP2515/MCP2515.h"
 
 // Global mutex for printf
 mutex_t printf_mutex;
@@ -116,6 +117,39 @@ void core1_main() {
         // Packet Metadata
         packet.tx_count = (uint16_t)lora_get_tx_count();
         packet.can_frame_count = (uint16_t)(can_get_frame_count() & 0xFFFF);
+
+        // --- DASHBOARD CAN BROADCAST (ID: 0x600) ---
+        
+        // // 1. Scale the verified float values back to 16-bit integers
+        // uint16_t rpm_out = can_data.rpm;
+        // uint16_t map_out = (uint16_t)(can_data.map * 10.0f);
+        // int16_t  et_out  = (int16_t)(can_data.engine_temp * 10.0f);
+        // uint16_t tps_out = (uint16_t)(can_data.tps * 10.0f);
+
+        // // 2. Pack the buffer using Intel (Little-Endian) format to match the DBC
+        // uint8_t dash_tx_buf[8];
+        
+        // // Bytes 0-1: RPM
+        // dash_tx_buf[0] = rpm_out & 0xFF; 
+        // dash_tx_buf[1] = (rpm_out >> 8);
+        
+        // // Bytes 2-3: MAP
+        // dash_tx_buf[2] = map_out & 0xFF; 
+        // dash_tx_buf[3] = (map_out >> 8);
+        
+        // // Bytes 4-5: Engine Temp (Signed)
+        // dash_tx_buf[4] = et_out & 0xFF;  
+        // dash_tx_buf[5] = (et_out >> 8);
+        
+        // // Bytes 6-7: TPS
+        // dash_tx_buf[6] = tps_out & 0xFF; 
+        // dash_tx_buf[7] = (tps_out >> 8);
+
+        // // 3. Transmit the frame onto the bus
+        // // (Using the standard MCP2515_Send function from your driver)
+        // MCP2515_Send(0x600, dash_tx_buf, 8);
+        
+        // -------------------------------------------
         
         // Send it (blocking)
         if (lora_send((uint8_t*)&packet, sizeof(packet))) {
