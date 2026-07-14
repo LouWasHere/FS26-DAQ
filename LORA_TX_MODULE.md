@@ -2,14 +2,14 @@
 
 ## Overview
 
-The LoRa TX module provides a simplified TX-only interface to the Semtech LR1121 LoRa radio transceiver. It handles SPI communication, radio initialization, modulation configuration, and blocking packet transmission.
+The LoRa TX module provides a simplified TX-only interface to the Semtech LR1121 LoRa radio transceiver. It handles SPI communication, radio initialization, modulation configuration, and packet transmission operations. 
 
 **Hardware Interface:** SPI1 (GPIO 10-13)  
-**Radio Chip:** LR1121 (SPI slave)  
-**Frequency:** 2.4 GHz (2400 MHz)  
+**Radio Chip:** LR1121 (Standalone chip, through-hole mounted. Not a Pico HAT.)  
+**Frequency:** Natively 2.4 GHz (2400 MHz ISM Band)  
 **Modulation:** LoRa  
 **TX Power:** 13 dBm (~20 mW)  
-**Maximum Payload:** 32 bytes  
+**Base Maximum Payload:** 32 bytes (Supports multi-packet chunking for 68-byte telemetry)  
 **Spreading Factor:** SF7 (good range/speed tradeoff)
 
 ---

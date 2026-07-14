@@ -1,7 +1,7 @@
 # CAN Integration Implementation Summary
 
 ## Overview
-Successfully integrated FT550 ECU CAN data processing into the FS26-DAQ dual-core system. Core 1 now simultaneously handles LoRa TX broadcasting and CAN frame reception, with data merged into a unified telemetry packet.
+Successfully integrated FT550/LITE ECU CAN data processing (reverted to MoTeC due to ECU failure) into the FS26-DAQ dual-core system. Core 1 now simultaneously handles LoRa TX broadcasting and CAN frame reception, with data merged into a unified telemetry packet. The physical interface to the ECU is established via the hardware's native 26-pin TE Connectivity Superseal 1.0 connectors, bridging CAN High and CAN Low to the standalone MCP2515 SPI controller.
 
 ## New Modules Created
 

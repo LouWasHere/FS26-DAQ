@@ -257,11 +257,12 @@ printf("Frames received in last second: %lu\n", frames_received);
 ## Troubleshooting
 
 ### CAN Frames Not Being Received
-1. Verify MCP2515 hardware is connected and powered
-2. Check CAN bus termination (120Ω resistors at both ends)
-3. Ensure ECU is transmitting at 1 Mbps on extended 29-bit IDs
-4. Verify frame IDs match FT550 protocol (0x14080600-0x14080608)
-5. Check `can_get_frame_count()` - should be incrementing
+1. Verify MCP2515 hardware is connected and powered.
+2. Check CAN bus termination (120Ω resistors at both ends).
+3. Verify the physical wiring at the ECU: Ensure pins correspond correctly to the 26-pin TE Connectivity Superseal 1.0 connectors on the FT550/LITE.
+4. Ensure ECU is transmitting at 1 Mbps on extended 29-bit IDs.
+5. Verify frame IDs match FT550 protocol (0x14080600-0x14080608).
+6. Check `can_get_frame_count()` - should be incrementing.
 
 ### Data Always Zero
 1. Verify `can_process_frame()` is being called frequently

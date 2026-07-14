@@ -84,7 +84,6 @@
 ## Hardware Interfaces
 
 ### UART0 - GPS Receiver
-```
 Pico GPIO 0 (TX)  ─────► GPS GND
 Pico GPIO 1 (RX)  ◄───── GPS TX
 
@@ -94,10 +93,8 @@ Configuration:
 • Protocol: NMEA 0183
 • Update rate: 5 Hz (200 ms)
 • Sentences: GPGGA (fix data), GPRMC (motion data)
-```
 
 ### SPI0 - MCP2515 CAN Controller (Dedicated)
-```
 GPIO 4  (MISO)  ◄──── RX
 GPIO 6  (CLK)   ────► CLK
 GPIO 7  (MOSI)  ────► TX
@@ -108,10 +105,9 @@ Configuration:
 • Mode: SPI mode 0 (CPOL=0, CPHA=0)
 • Bit order: MSB first
 • Baud: 1 Mbps CAN
-```
+• Form Factor: Standalone IC
 
 ### SPI1 - LR1121 LoRa Radio (Dedicated)
-```
 GPIO 10 (SCLK)  ────► CLK
 GPIO 11 (MOSI)  ────► TX
 GPIO 12 (MISO)  ◄──── RX
@@ -126,11 +122,10 @@ Configuration:
 • Clock speed: 1 MHz
 • Mode: SPI mode 0 (CPOL=0, CPHA=0)
 • Bit order: MSB first
-• Frequency: 2.4 GHz
-```
+• Frequency: Natively 2.4 GHz
+• Hardware: Standalone chip, through-hole mounted (Note: This is not an expansion HAT)
 
-### CAN Bus - FT550 ECU (via MCP2515)
-```
+### CAN Bus - FT550/LITE ECU (via MCP2515)
 CAN H ◄─────────► MCP2515 → SPI0
 CAN L ◄─────────► MCP2515 → SPI0
 
@@ -138,9 +133,7 @@ Configuration:
 • Baud rate: 1 Mbps
 • Frame format: Extended 29-bit CAN 2.0B
 • Message IDs: 0x14080600-0x14080608 (FT550)
-• Polling rate: 100 Hz capable
-```
----
+• Hardware Interface: TE Connectivity Superseal 1.0 connectors (26-pin layout)
 
 ## Module Dependencies
 
@@ -262,7 +255,9 @@ Free time for other tasks: ~890 ms/sec (89% idle)
 
 ### combined_telemetry_packet_t (68 bytes)
 
-**Total Size:** 68 bytes (fits within LoRa 32-byte max after payload size consideration)
+**Total Size:** 68 bytes
+
+*Architecture Note on Payload Size:* The combined telemetry packet is 68 bytes, which exceeds the default LoRa `PAYLOAD_LENGTH` of 32 bytes. The system utilizes the chunked multi-packet transmission architecture (as defined in `LORA_TX_MODULE.md`) to split this 68-byte struct across three sequential 30-byte LoRa payloads to ensure reliable delivery at SF7 without truncating critical dynamics data.
 
 | Offset | Field | Type | Bytes | Source |
 |--------|-------|------|-------|--------|
