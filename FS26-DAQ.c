@@ -65,9 +65,6 @@ void core1_main() {
     safe_printf("Core 1: Initializing LoRa TX...\n");
     lora_tx_init();
     
-    safe_printf("Core 1: Initializing CAN bus for FT550 data...\n");
-    can_init();
-    
     core1_running = true;
     
     safe_printf("Core 1: Starting combined telemetry broadcast (GPS + CAN + LoRa)...\n");
@@ -136,6 +133,22 @@ int main() {
     mutex_init(&printf_mutex);  // Initialize mutex before anything else
     sleep_ms(2000); 
     
+    safe_printf("Core 0: Initializing dual-core GPS + LoRa DAQ system...\n");
+    
+    // Initialize GPS module on core 0
+    gps_init();
+    // Initialize CAN bus for ECU data
+    can_init();
+    
+    // Launch core 1 for LR1121
+    safe_printf("Core 0: Launching Core 1 for LR1121...\n");
+    multicore_launch_core1(core1_main);
+    
+    // Wait for core 1 to be ready
+    while (!core1_running) {
+        sleep_ms(10);
+    }
+
     safe_printf("Core 0: Both cores running. Starting GPS processing...\n");
     
     uint32_t last_dash_tx = 0; // Track when we last updated the screen
