@@ -42,6 +42,14 @@ void can_init(void) {
     printf("CAN: Initialized MCP2515 at 1 Mbps, extended 29-bit identifiers\n");
 }
 
+// -- REWORKED FOR MOTEC M84 DECODING -- SEE GIT HISTORY FOR FT550LITE IMPLEMENTATION. CODE STILL EXISTS IN ft550_decoder.c
+
+/* 
+Mostly this function below that was changed - from invoking the ft550_decode_frame() to a custom MoTeC M84 decoder that 
+handles the burst of frames and extracts the relevant data.
+If anyone is looking at this in years to come, get in touch with me (Louis) if you need any help.
+*/
+
 bool can_process_frame(void) {
     uint32_t received_id = 0;
     uint8_t rx_buffer[8] = {0}; 

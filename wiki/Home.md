@@ -6,6 +6,7 @@ The current firmware combines GPS positioning, CAN telemetry from the FT550 ECU,
 ## Wiki Map
 
 - [System Architecture](Architecture.md)
+- [Hardware Construction](Hardware-Construction.md)
 - [Telemetry Flow](Telemetry-Flow.md)
 - [Build and Deploy](Build-and-Deploy.md)
 
