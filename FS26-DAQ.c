@@ -158,11 +158,11 @@ int main() {
         // 1. Poll GPS UART
         gps_process();
         
-        // 2. DRAIN LOOP: Vacuum the MoTeC stream
+        // 2. DRAIN LOOP: Vacuum the ECU stream - may only be necessary if M84...test it with the FT550 though, since was added after the switch.
         while (can_process_frame()) {
         }
         
-        // 3. DASHBOARD BROADCAST (1Hz)
+        // 3. DASHBOARD BROADCAST (10Hz) - Send the latest GPS + CAN telemetry to the dash via CAN. 
         uint32_t current_time = to_ms_since_boot(get_absolute_time());
         if (current_time - last_dash_tx >= 50) { 
             
