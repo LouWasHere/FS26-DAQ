@@ -1,0 +1,72 @@
+VERSION ""
+
+NS_ : 
+	BA_DEF_
+	BA_
+	VAL_
+	BA_DEF_DEF_
+
+BS_:
+
+BU_: Display ECU
+
+BO_ 2483553792 FT_Simp_0: 8 ECU
+ SG_ TPS : 7|16@0- (0.1,0) [0|100] "%" Display
+ SG_ MAP : 23|16@0- (0.001,0) [0|10] "bar" Display
+ SG_ Air_Temp : 39|16@0- (0.1,0) [-50|250] "C" Display
+ SG_ Engine_Temp : 55|16@0- (0.1,0) [-50|250] "C" Display
+
+BO_ 2483553793 FT_Simp_1: 8 ECU
+ SG_ Oil_Pressure : 7|16@0- (0.001,0) [0|20] "bar" Display
+ SG_ Fuel_Pressure : 23|16@0- (0.001,0) [0|20] "bar" Display
+ SG_ Water_Pressure : 39|16@0- (0.001,0) [0|20] "bar" Display
+ SG_ Gear : 55|16@0- (1,0) [-2|10] "" Display
+
+BO_ 2483553794 FT_Simp_2: 8 ECU
+ SG_ Exhaust_O2 : 7|16@0- (0.001,0) [0|5] "lambda" Display
+ SG_ RPM : 23|16@0- (1,0) [-1000|14000] "rpm" Display
+ SG_ Oil_Temp : 39|16@0- (0.1,0) [-50|250] "C" Display
+ SG_ Pit_Limit : 55|16@0- (1,0) [0|1] "" Display
+
+BO_ 2483553795 FT_Simp_3: 8 ECU
+ SG_ Wheel_Speed_FR : 7|16@0- (1,0) [0|500] "km/h" Display
+ SG_ Wheel_Speed_FL : 23|16@0- (1,0) [0|500] "km/h" Display
+ SG_ Wheel_Speed_RR : 39|16@0- (1,0) [0|500] "km/h" Display
+ SG_ Wheel_Speed_RL : 55|16@0- (1,0) [0|500] "km/h" Display
+
+BO_ 2483553796 FT_Simp_4: 8 ECU
+ SG_ Traction_Ctrl_Slip : 7|16@0- (1,0) [0|100] "%" Display
+ SG_ Traction_Ctrl_Retard : 23|16@0- (0.1,0) [-50|50] "deg" Display
+ SG_ Traction_Ctrl_Cut : 39|16@0- (1,0) [0|100] "%" Display
+ SG_ Heading : 55|16@0- (0.1,0) [0|360] "deg" Display
+
+BO_ 2483553797 FT_Simp_5: 8 ECU
+ SG_ Shock_Sensor_FR : 7|16@0- (0.001,0) [0|5] "v" Display
+ SG_ Shock_Sensor_FL : 23|16@0- (0.001,0) [0|5] "v" Display
+ SG_ Shock_Sensor_RR : 39|16@0- (0.001,0) [0|5] "v" Display
+ SG_ Shock_Sensor_RL : 55|16@0- (0.001,0) [0|5] "v" Display
+
+BO_ 2483553798 FT_Simp_6: 8 ECU
+ SG_ Gforce_Accel : 7|16@0- (0.01,0) [-10|10] "G" Display
+ SG_ Gforce_Lateral : 23|16@0- (0.01,0) [-10|10] "G" Display
+ SG_ Yaw_Rate_Frontal : 39|16@0- (0.1,0) [-360|360] "deg/s" Display
+ SG_ Yaw_Rate_Lateral : 55|16@0- (0.1,0) [-360|360] "deg/s" Display
+
+BO_ 2483553799 FT_Simp_7: 8 ECU
+ SG_ Lambda_Correction : 7|16@0- (0.1,0) [-100|100] "%" Display
+ SG_ Fuel_Flow_Total : 23|16@0- (0.1,0) [0|1000] "L/h" Display
+ SG_ Inj_Time_Bank_A : 39|16@0- (0.01,0) [0|100] "ms" Display
+ SG_ Inj_Time_Bank_B : 55|16@0- (0.01,0) [0|100] "ms" Display
+
+BO_ 2483553800 FT_Simp_8: 8 ECU
+ SG_ Oil_Temp_2 : 7|16@0- (0.1,0) [-50|250] "C" Display
+ SG_ Trans_Temp : 23|16@0- (0.1,0) [-50|250] "C" Display
+ SG_ Fuel_Consumption : 39|16@0- (1,0) [0|65535] "L" Display
+ SG_ Brake_Pressure : 55|16@0- (0.001,0) [0|200] "bar" Display
+
+BA_DEF_  "BusType" STRING ;
+BA_DEF_DEF_  "BusType" "CAN";
+BA_ "BusType" "CAN";
+
+VAL_ 2483553793 Gear -2 "Park" -1 "Reverse" 0 "Neutral" 1 "1st" 2 "2nd" 3 "3rd" 4 "4th" 5 "5th" 6 "6th" 7 "7th" 8 "8th" 9 "9th" 10 "10th" ;
+VAL_ 2483553794 Pit_Limit 0 "Off" 1 "On" ;
